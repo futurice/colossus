@@ -27,7 +27,7 @@ trait Rate extends Collector{
 }
 
 //working implementation of a Rate
-class DefaultRate private[metrics](val address: MetricAddress, val pruneEmpty: Boolean, intervals : Seq[FiniteDuration])extends Rate {
+class DefaultRate private[metrics](val address: MetricAddress, extraTags: TagMap, val pruneEmpty: Boolean, intervals : Seq[FiniteDuration])extends Rate {
 
   private val maps: Map[FiniteDuration, CollectionMap[TagMap]] = intervals.map{ i => (i, new CollectionMap[TagMap])}.toMap
 
@@ -86,9 +86,9 @@ object Rate extends CollectorConfigLoader {
     * @return
     */
   def apply(address : MetricAddress, configName : String)(implicit ns : MetricNamespace) : Rate = {
-    ns.getOrAdd(address){(fullAddress, config) =>
+    ns.getOrAdd(address){(fullAddress, extraTags, config) =>
       val params = resolveConfig(config.config, fullAddress, configName, DefaultConfigPath)
-      createRate(fullAddress, params.getBoolean("prune-empty"), params.getBoolean("enabled"), config.intervals)
+      createRate(fullAddress, extraTags, params.getBoolean("prune-empty"), params.getBoolean("enabled"), config.intervals)
     }
   }
 
@@ -102,14 +102,14 @@ object Rate extends CollectorConfigLoader {
     * @return
     */
   def apply(address: MetricAddress, pruneEmpty: Boolean = false, enabled : Boolean = true)(implicit ns: MetricNamespace): Rate = {
-    ns.getOrAdd(address){ (fullAddress, config) =>
-      createRate(fullAddress, pruneEmpty, enabled, config.intervals)
+    ns.getOrAdd(address){ (fullAddress, extraTags, config) =>
+      createRate(fullAddress, extraTags, pruneEmpty, enabled, config.intervals)
     }
   }
 
-  private def createRate(address: MetricAddress, pruneEmpty: Boolean, enabled : Boolean, intervals : Seq[FiniteDuration]) : Rate = {
+  private def createRate(address: MetricAddress, extraTags: TagMap, pruneEmpty: Boolean, enabled : Boolean, intervals : Seq[FiniteDuration]) : Rate = {
     if(enabled){
-      new DefaultRate(address, pruneEmpty, intervals)
+      new DefaultRate(address, extraTags, pruneEmpty, intervals)
     }else{
       new NopRate(address, pruneEmpty)
     }

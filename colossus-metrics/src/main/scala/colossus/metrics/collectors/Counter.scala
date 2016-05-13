@@ -43,7 +43,7 @@ trait Counter extends Collector {
 }
 
 //Working implementation of a Counter
-class DefaultCounter private[metrics](val address: MetricAddress) extends Counter {
+class DefaultCounter private[metrics](val address: MetricAddress, extraTags: TagMap) extends Counter {
 
   private val counters = new CollectionMap[TagMap]
 
@@ -101,9 +101,9 @@ object Counter extends CollectorConfigLoader{
     * @return
     */
   def apply(address : MetricAddress, configPath : String)(implicit ns : MetricNamespace) : Counter = {
-    ns.getOrAdd(address){ (fullAddress, config) =>
+    ns.getOrAdd(address){ (fullAddress, extraTags, config) =>
       val params = resolveConfig(config.config, fullAddress, configPath, DefaultConfigPath)
-      createCounter(address, params.getBoolean("enabled"))
+      createCounter(address, extraTags, params.getBoolean("enabled"))
     }
   }
 
@@ -116,14 +116,14 @@ object Counter extends CollectorConfigLoader{
     * @return
     */
   def apply(address: MetricAddress, enabled: Boolean = true)(implicit ns : MetricNamespace): Counter = {
-    ns.getOrAdd(address){(fullAddress, config) =>
-      createCounter(fullAddress, enabled)
+    ns.getOrAdd(address){(fullAddress, extraTags, config) =>
+      createCounter(fullAddress, extraTags, enabled)
     }
   }
 
-  private def createCounter(address : MetricAddress, enabled : Boolean) : Counter = {
+  private def createCounter(address : MetricAddress, extraTags: TagMap, enabled : Boolean) : Counter = {
     if(enabled){
-      new DefaultCounter(address)
+      new DefaultCounter(address, extraTags)
     }else{
       new NopCounter(address)
     }

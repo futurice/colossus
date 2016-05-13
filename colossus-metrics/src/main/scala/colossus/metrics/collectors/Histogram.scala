@@ -104,7 +104,7 @@ object Histogram extends CollectorConfigLoader{
     * @return
     */
   def apply(address : MetricAddress, configPath : String)(implicit ns : MetricNamespace) : Histogram = {
-    ns.getOrAdd(address){(fullAddress, config) =>
+    ns.getOrAdd(address){(fullAddress, extraTags, config) =>
       import scala.collection.JavaConversions._
 
       val params = resolveConfig(config.config, fullAddress, configPath, DefaultConfigPath)
@@ -112,7 +112,7 @@ object Histogram extends CollectorConfigLoader{
       val sampleRate = params.getDouble("sample-rate")
       val pruneEmpty = params.getBoolean("prune-empty")
       val enabled = params.getBoolean("enabled")
-      createHistogram(address, percentiles, sampleRate, pruneEmpty, enabled, config.intervals)
+      createHistogram(address, extraTags, percentiles, sampleRate, pruneEmpty, enabled, config.intervals)
     }
   }
 
@@ -132,19 +132,20 @@ object Histogram extends CollectorConfigLoader{
     pruneEmpty: Boolean = false,
     enabled : Boolean = true
   )(implicit ns : MetricNamespace): Histogram = {
-    ns.getOrAdd(address){(fullAddress, config) =>
-      createHistogram(fullAddress, percentiles, sampleRate, pruneEmpty, enabled, config.intervals)
+    ns.getOrAdd(address){(fullAddress, extraTags, config) =>
+      createHistogram(fullAddress, extraTags, percentiles, sampleRate, pruneEmpty, enabled, config.intervals)
     }
   }
 
   private def createHistogram(address : MetricAddress,
+                              extraTags: TagMap,
                               percentiles : Seq[Double],
                               sampleRate : Double,
                               pruneEmpty : Boolean,
                               enabled : Boolean,
                               intervals : Seq[FiniteDuration]) : Histogram = {
     if(enabled){
-      new DefaultHistogram(address, percentiles, sampleRate, pruneEmpty, intervals)
+      new DefaultHistogram(address, extraTags, percentiles, sampleRate, pruneEmpty, intervals)
     }else{
       new NopHistogram(address)
     }
@@ -279,6 +280,7 @@ private[metrics] class BaseHistogram(val bucketList: BucketList = Histogram.defa
 //Working implementation of a Histogram
 class DefaultHistogram private[metrics](
   val address: MetricAddress,
+  extraTags: TagMap,
   val percentiles: Seq[Double] = Histogram.defaultPercentiles,
   val sampleRate: Double = 1.0,
   val pruneEmpty: Boolean = false,

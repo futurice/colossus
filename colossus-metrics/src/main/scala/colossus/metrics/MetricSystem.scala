@@ -30,9 +30,9 @@ class MetricInterval private[metrics](val namespace : MetricAddress,
 
 
 /**
- * A MetricNamespace is essentially just an address prefix and is needed when
+ * A MetricNamespace is essentially just an address prefix and tag map. It is needed when
  * getting or creating collectors.  The `namespace` address is prefixed onto the
- * given address for the collector to create the full address.
+ * given address for the collector to create the full address. Tags are added to metrics when snapshots are created.
  */
 trait MetricNamespace {
 
@@ -54,9 +54,9 @@ trait MetricNamespace {
     * @tparam T
     * @return  A newly created instance of [[Collector]], created by `f` or an existing [[Collector]] if one already exists with the same MetricAddress
     */
-  def getOrAdd[T <: Collector : ClassTag](address : MetricAddress)(f : (MetricAddress, CollectorConfig) => T) : T = {
+  def getOrAdd[T <: Collector : ClassTag](address : MetricAddress)(f : (MetricAddress, TagMap, CollectorConfig) => T) : T = {
     val fullAddress =  namespace / address
-    collection.getOrAdd(fullAddress)(f)
+    collection.getOrAdd(fullAddress, extraTags)(f)
   }
 
   /**
@@ -64,9 +64,11 @@ trait MetricNamespace {
    */
   def /(subpath: MetricAddress): MetricNamespace = MetricContext(namespace / subpath, collection)
 
+  def extraTags: TagMap
+
 }
 
-case class MetricContext(namespace: MetricAddress, collection: Collection) extends MetricNamespace
+case class MetricContext(namespace: MetricAddress, collection: Collection, extraTags: TagMap = TagMap.Empty) extends MetricNamespace
 
 /**
   * The MetricSystem is a set of actors which handle the background operations of dealing with metrics. In most cases,
@@ -103,7 +105,8 @@ case class MetricContext(namespace: MetricAddress, collection: Collection) exten
  */
 case class MetricSystem private[metrics] (namespace: MetricAddress, collectionIntervals : Map[FiniteDuration, MetricInterval],
                                           collectionSystemMetrics : Boolean, config : Config) extends MetricNamespace {
-
+  
+  val extraTags: TagMap = TagMap.Empty
   val collection = new Collection(CollectorConfig(collectionIntervals.keys.toSeq, config))
   registerCollection(collection)
 

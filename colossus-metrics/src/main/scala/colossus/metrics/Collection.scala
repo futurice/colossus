@@ -1,5 +1,6 @@
 package colossus.metrics
 
+import colossus.metrics
 import com.typesafe.config.{ConfigFactory, Config}
 
 import scala.concurrent.duration._
@@ -34,6 +35,12 @@ trait Collector {
     * @return
     */
   def address: MetricAddress
+
+  /**
+    * Extra tags
+    * @return
+    */
+  def extraTags: TagMap = TagMap.Empty
 
   /**
     * TODO
@@ -98,7 +105,6 @@ private[metrics] class CollectionMap[T] {
 class DuplicateMetricException(message: String) extends Exception(message)
 
 class Collection(val config: CollectorConfig) {
-
   val collectors : ConcurrentHashMap[MetricAddress, Collector] = new ConcurrentHashMap[MetricAddress, Collector]()
 
   /**
@@ -108,7 +114,7 @@ class Collection(val config: CollectorConfig) {
    * @param address Address meant to be relative to this MetricNamespace's namespace
    * @param f Function which takes in an absolutely pathed MetricAddress, and a [[CollectorConfig]] and returns an instance of a [[Collector]]
     */
-  def getOrAdd[T <: Collector : ClassTag](address : MetricAddress)(f : (MetricAddress, CollectorConfig) => T): T = {
+  def getOrAdd[T <: Collector : ClassTag](address : MetricAddress, extraTags: TagMap)(f : (MetricAddress, TagMap, CollectorConfig) => T): T = {
     def cast(retrieved: Collector): T = retrieved match {
       case t : T => t
       case other => {
@@ -120,7 +126,7 @@ class Collection(val config: CollectorConfig) {
     if (collectors.containsKey(address)) {
       cast(collectors.get(address))
     } else {
-      val c = f(address, config)
+      val c = f(address, extraTags, config)
       collectors.putIfAbsent(address, c) match {
         case null => c
         case other => cast(other)
@@ -134,12 +140,14 @@ class Collection(val config: CollectorConfig) {
     while (keys.hasMoreElements) {
       val key = keys.nextElement
       Option(collectors.get(key)) foreach { c =>
-        build = build ++ c.tick(interval)
+        val extraTags = TagMap.Empty
+        build = build ++ c.tick(interval).mapValues{ valueMap =>
+          valueMap.map{case (tags, value) => (tags ++ extraTags, value)}
+        }
       }
     }
     build
   }
-
 }
 
 //Used as a convenience function in tests.  Used in both both colossus-tests and in colossus-metrics tests, which means
