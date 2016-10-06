@@ -316,13 +316,19 @@ trait OutputController[Input, Output] extends MasterController[Input, Output] {
           dataQ.dequeue.encode(buffer)
         }
         if (dataQ.isEmpty) {
-          if (source.isClosed) {
-            //all done
-            post(OutputResult.Success)
-            outputState = Dequeueing
-          } else {
+	  def checkClosed = {
+            if (source.isClosed) {
+            	//all done
+            	post(OutputResult.Success)
+            	outputState = Dequeueing
+	    }
+	    source.isClosed
+	  }
+
+          if (!checkClosed) {
             //ask for more
             drainSource()
+	    checkClosed
           }
         }
       }
