@@ -3,10 +3,12 @@ package controller
 
 import core._
 import java.util.LinkedList
+
+import akka.event.Logging
+
 import scala.annotation.tailrec
 import scala.concurrent.duration._
-import scala.util.{Success, Failure}
-
+import scala.util.{Failure, Success}
 import service.{NotConnectedException, RequestTimeoutException}
 
 /**
@@ -126,6 +128,13 @@ object OutputResult {
 trait OutputController[Input, Output] extends MasterController[Input, Output] {
   import OutputState._
 
+/*  class Logger {
+    def debug(str:String) = {
+      System.out.println(str)
+    }
+  }
+  private val log = new Logger()*/
+
   private[controller] var outputState: OutputState = Suspended
   private var msgq = new MessageQueue[Output](controllerConfig.outputBufferSize)
 
@@ -238,7 +247,7 @@ trait OutputController[Input, Output] extends MasterController[Input, Output] {
 
   protected def canPush = outputState.canPush && !msgq.isFull
 
-  private def drainSource(){ 
+  private def drainSource(){
     outputState match {
       case Streaming(source, dataQ, post) => source.pull {
         case Success(Some(data)) => {
@@ -316,19 +325,19 @@ trait OutputController[Input, Output] extends MasterController[Input, Output] {
           dataQ.dequeue.encode(buffer)
         }
         if (dataQ.isEmpty) {
-	  def checkClosed = {
-            if (source.isClosed) {
+	        def checkClosed = {
+            if (source.isClosed && dataQ.isEmpty) {
             	//all done
             	post(OutputResult.Success)
             	outputState = Dequeueing
-	    }
-	    source.isClosed
-	  }
+	          }
+	          source.isClosed
+	        }
 
           if (!checkClosed) {
             //ask for more
             drainSource()
-	    checkClosed
+	          checkClosed
           }
         }
       }
